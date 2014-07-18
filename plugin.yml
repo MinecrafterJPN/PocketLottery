@@ -1,0 +1,21 @@
+name: PocketLottery
+main: MinecrafterJPN\PocketLottery
+version: 1.0.0
+api: [1.0.0]
+load: POSTWORLD
+author: MinecrafterJPN
+description: "PocketLottery is a lottery plugin for PocketMine"
+website: "https://github.com/MinecrafterJPN/PocketLottery"
+commands:
+ lottery:
+  description: "PocketLottery command"
+  usage: "Usage: /lottery [ buy | donate | help ]"
+  permission: lottery.command
+permissions:
+ lottery:
+  default: op
+  description: "Allows using all the PocketLottery things"
+  children:
+   lottery.command:
+    default: true
+    description: "Allows using all the PocketLottery commands"

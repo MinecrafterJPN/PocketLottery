@@ -12,6 +12,6 @@ class DrawingTask extends PluginTask
 
     public function onRun($currentTick)
     {
-        $this->owner->drawing();
+        $this->owner->draw();
     }
 }

@@ -8,19 +8,13 @@
 
 namespace MinecrafterJPN;
 
-use pocketmine\Player;
 use pocketmine\plugin\PluginBase;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
-use pocketmine\utils\Config;
-
-use PocketMoney\Error\SimpleError;
-use PocketMoney\constants\PlayerType;
 
 class PocketLottery extends PluginBase
 {
     /* @var array */
-    private $config;
     private $tickets;
 
     public function onLoad()
@@ -29,13 +23,15 @@ class PocketLottery extends PluginBase
 
 	public function onEnable()
 	{
-        $this->config = ["price" => 100, "pot" => 0];
+        $this->saveDefaultConfig();
+        $this->reloadConfig();
         $this->tickets = array();
-        $this->getServer()->getScheduler()->scheduleDelayedTask(new DrawingTask($this), 5000);
+        $this->getServer()->getScheduler()->scheduleDelayedRepeatingTask(new DrawingTask($this), $this->getConfig()->get("interval"), $this->getConfig()->get("interval"));
     }
 
 	public function onDisable()
 	{
+        $this->getConfig()->save();
 	}
 
 	public function onCommand(CommandSender $sender, Command $command, $label, array $args)
@@ -45,7 +41,16 @@ class PocketLottery extends PluginBase
 				$subCommand = strtolower(array_shift($args));
 				switch ($subCommand) {
 					case "":
+                        $price = $this->getConfig()->get("ticket_price");
+                        $pot = $this->getConfig()->get("pot");
+                        $numOfTickets = count($this->tickets);
+                        $sender->sendMessage("Ticket: $price PM per one");
+                        $sender->sendMessage("Pot: $pot PM");
+                        $sender->sendMessage("$numOfTickets tickets have been bought");
+                        break;
+
 					case "help":
+                        $sender->sendMessage("/lottery");
 						$sender->sendMessage("/lottery help");
 						$sender->sendMessage("/lottery buy <num>");
 						$sender->sendMessage("/lottery donate <amount>");
@@ -53,25 +58,39 @@ class PocketLottery extends PluginBase
 
 					case "buy":
                         $num = array_shift($args);
-                        $cost = $this->config['price'] * $num;
-                        if ($this->getServer()->getPluginManager()->getPlugin("PocketMoney")->grantMoney($sender->getName(), $cost) !== true) {
-                            $sender->sendMessage("Not enough money!");
+                        if ($num === null or !is_numeric($num)) {
+                            $sender->sendMessage("/lottery buy <num>");
                             break;
                         }
-                        $this->config['pot'] += $cost;
-                        for ($i = 0; $i < $num; $i++) {
+                        $total = $this->getConfig()->get("ticket_price") * $num;
+                        if ($this->getServer()->getPluginManager()->getPlugin("PocketMoney")->grantMoney($sender->getName(), -$total) !== true) {
+                            $sender->sendMessage("Not enough balance!");
+                            break;
+                        }
+                        $this->getConfig()->set("pot", $this->getConfig()->get("pot") + $total);
+                        $i = 0;
+                        while ($i++ < $num) {
                             array_push($this->tickets, $sender->getName());
                         }
+                        $sender->sendMessage("Completed buying $num tickets, $total PM!");
                         break;
 
 					case "donate":
                         $amount = array_shift($args);
-                        if ($this->getServer()->getPluginManager()->getPlugin("PocketMoney")->grantMoney($sender->getName(), $amount) !== true) {
-                            $sender->sendMessage("Not enough money!");
+                        if ($amount === null or !is_numeric($amount)) {
+                            $sender->sendMessage("/lottery donate <amount>");
                             break;
                         }
-                        $this->config['pot'] += $amount;
-						break;
+                        if ($this->getServer()->getPluginManager()->getPlugin("PocketMoney")->grantMoney($sender->getName(), $amount) !== true) {
+                            $sender->sendMessage("Not enough balance!");
+                            break;
+                        }
+                        $this->getConfig()->set("pot", $this->getConfig()->get("pot") + $amount);
+                        $sender->sendMessage("Completed donating $amount PM!");
+                        break;
+
+                    case "config":
+                        break;
 
 					default:
                         $sender->sendMessage("\"/money $subCommand\" does not exist");
@@ -84,11 +103,14 @@ class PocketLottery extends PluginBase
 		}
 	}
 
-    public function drawing()
+    public function draw()
     {
-        $winner = $this->tickets[mt_rand(0, count($this->tickets))];
-        $pot = $this->config['pot'];
+        if (count($this->tickets) < 1) return;
+        $winner = $this->tickets[mt_rand(0, count($this->tickets) - 1)];
+        $pot = $this->getConfig()->get("pot");
         $this->getServer()->broadcastMessage("$winner win! $pot PM -> $winner !!");
         $this->getServer()->getPluginManager()->getPlugin("PocketMoney")->grantMoney($winner, $pot);
+        $this->getConfig()->set("pot", 0);
+        $this->tickets = [];
     }
 }
